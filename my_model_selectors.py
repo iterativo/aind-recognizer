@@ -98,11 +98,42 @@ class SelectorDIC(ModelSelector):
 
 class SelectorCV(ModelSelector):
     ''' select best model based on average log Likelihood of cross-validation folds
-
+        
     '''
 
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection using CV
-        raise NotImplementedError
+        # DONE implement model selection using CV
+        best_score, best_model = float("-inf"), None
+        n_splits = 2  # could be injected
+
+        # evaluate model for each n_components between min and max
+        for n in range(self.min_n_components, self.max_n_components + 1):
+            kfold = KFold(random_state=self.random_state, n_splits=n_splits)
+
+            # calculate average score for all splits and update best model
+            logL = []
+            model = None
+            for train_index, test_index in kfold.split(self.sequences):
+                # Guard for exception thrown by hmmlearn bug as explained here:
+                # https://discussions.udacity.com/t/hmmlearn-valueerror-rows-of-transmat--must-sum-to-1-0/229995/4
+                try:
+                    x_train, len_train = combine_sequences(train_index, self.sequences)
+                    x_test, len_test = combine_sequences(test_index, self.sequences)
+
+                    model = GaussianHMM(n_components=n, n_iter=1000).fit(x_train, len_train)
+                    logL.append(model.score(x_test, len_test))
+                except ValueError:
+                    break
+
+            avg = np.average(logL) if len(logL) > 0 else float("-inf")
+
+            if avg > best_score:
+                best_score = avg
+                best_model = model
+
+        if best_model is None:
+            return self.base_model(self.n_constant)
+
+        return best_model
