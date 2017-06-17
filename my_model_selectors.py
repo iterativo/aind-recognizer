@@ -76,8 +76,36 @@ class SelectorBIC(ModelSelector):
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection based on BIC scores
-        raise NotImplementedError
+        best_score, best_model = float("-inf"), None
+
+        # DONE implement model selection based on BIC scores
+        for n in range(self.min_n_components, self.max_n_components + 1):
+            # Guard for exception thrown by hmmlearn bug as explained here:
+            # https://discussions.udacity.com/t/hmmlearn-valueerror-rows-of-transmat--must-sum-to-1-0/229995/4
+            try:
+                model = self.base_model(n)
+                logL = model.score(self.X, self.lengths)
+
+                # https://discussions.udacity.com/t/number-of-parameters-bic-calculation/233235/3
+                # Initial state occupation probabilities = numStates
+                # Transition probabilities = numStates*(numStates - 1)
+                # Emission probabilities = numStates*numFeatures*2 = numMeans+numCovars
+                # Parameters = Initial state occupation probabilities + Transition probabilities + Emission probabilities
+                p = n + (n * (n - 1)) + (n * self.X.shape[1] * 2)
+
+                logN = np.log(self.X.shape[0])
+                bic = -2 * logL + p * logN
+            except ValueError:
+                continue
+
+            if bic > best_score:
+                best_score = bic
+                best_model = model
+
+        if best_model is None:
+            return self.base_model(self.n_constant)
+
+        return best_model
 
 
 class SelectorDIC(ModelSelector):
