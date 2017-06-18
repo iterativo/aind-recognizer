@@ -95,12 +95,13 @@ class SelectorBIC(ModelSelector):
 
                 logN = np.log(self.X.shape[0])
                 bic = -2 * logL + p * logN
+
+                if bic > best_score:
+                    best_score = bic
+                    best_model = model
+
             except ValueError:
                 continue
-
-            if bic > best_score:
-                best_score = bic
-                best_model = model
 
         if best_model is None:
             return self.base_model(self.n_constant)
@@ -115,13 +116,49 @@ class SelectorDIC(ModelSelector):
     Document Analysis and Recognition, 2003. Proceedings. Seventh International Conference on. IEEE, 2003.
     http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.58.6208&rep=rep1&type=pdf
     DIC = log(P(X(i)) - 1/(M-1)SUM(log(P(X(all but i))
+
+    More on the meaning of this formula here:
+    https://discussions.udacity.com/t/dic-score-calculation/238907
+    - log(P(X(i)) is simply the log likelyhood (score) that is returned from
+      the model by calling model.score.
+    - log(P(X(j)); where j != i is just the model score when evaluating the
+      model on all words other than the word for which we are training this
+      particular model. 1/(M-1)SUM(log(P(X(all but i)) is simply the average
+      of the model scores for all other words.
     '''
 
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection based on DIC scores
-        raise NotImplementedError
+        # DONE implement model selection based on DIC scores
+        best_score, best_model = float("-inf"), None
+
+        for n in range(self.min_n_components, self.max_n_components + 1):
+            # Guard for exception thrown by hmmlearn bug as explained here:
+            # https://discussions.udacity.com/t/hmmlearn-valueerror-rows-of-transmat--must-sum-to-1-0/229995/4
+            try:
+                model = self.base_model(n)
+                logL = model.score(self.X, self.lengths)
+                other_logL_lst = []
+
+                for other_word in (w for w in self.hwords if w != self.this_word):
+                    x, lengths = self.hwords[other_word]
+                    other_logL_lst.append(model.score(x, lengths))
+
+                other_logL = np.average(other_logL_lst)
+                score = logL - other_logL
+
+                if score > best_score:
+                    best_score = score
+                    best_model = model
+
+            except ValueError:
+                continue
+
+        if best_model is None:
+            return self.base_model(self.n_constant)
+
+        return best_model
 
 
 class SelectorCV(ModelSelector):
@@ -141,7 +178,7 @@ class SelectorCV(ModelSelector):
             kfold = KFold(random_state=self.random_state, n_splits=n_splits)
 
             # calculate average score for all splits and update best model
-            logL = []
+            logL_lst = []
             model = None
             for train_index, test_index in kfold.split(self.sequences):
                 # Guard for exception thrown by hmmlearn bug as explained here:
@@ -151,11 +188,11 @@ class SelectorCV(ModelSelector):
                     x_test, len_test = combine_sequences(test_index, self.sequences)
 
                     model = GaussianHMM(n_components=n, n_iter=1000).fit(x_train, len_train)
-                    logL.append(model.score(x_test, len_test))
+                    logL_lst.append(model.score(x_test, len_test))
                 except ValueError:
                     break
 
-            avg = np.average(logL) if len(logL) > 0 else float("-inf")
+            avg = np.average(logL_lst) if len(logL_lst) > 0 else float("-inf")
 
             if avg > best_score:
                 best_score = avg
