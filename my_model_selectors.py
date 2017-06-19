@@ -94,9 +94,11 @@ class SelectorBIC(ModelSelector):
                 p = n + (n * (n - 1)) + (n * self.X.shape[1] * 2)
 
                 logN = np.log(self.X.shape[0])
-                bic = -2 * logL + p * logN
+                bic = p * logN - 2 * logL 
 
-                if bic > best_score:
+                # https://en.wikipedia.org/wiki/Bayesian_information_criterion
+                # The model with the lowest BIC is preferred
+                if bic < best_score:
                     best_score = bic
                     best_model = model
 
