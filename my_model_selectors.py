@@ -102,7 +102,7 @@ class SelectorBIC(ModelSelector):
                     best_score = bic
                     best_model = model
 
-            except ValueError:
+            except:
                 continue
 
         if best_model is None:
@@ -154,7 +154,7 @@ class SelectorDIC(ModelSelector):
                     best_score = score
                     best_model = model
 
-            except ValueError:
+            except:
                 continue
 
         if best_model is None:
@@ -182,17 +182,17 @@ class SelectorCV(ModelSelector):
             # calculate average score for all splits and update best model
             logL_lst = []
             model = None
-            for train_index, test_index in kfold.split(self.sequences):
-                # Guard for exception thrown by hmmlearn bug as explained here:
-                # https://discussions.udacity.com/t/hmmlearn-valueerror-rows-of-transmat--must-sum-to-1-0/229995/4
-                try:
+            # Guard for exception thrown by hmmlearn bug as explained here:
+            # https://discussions.udacity.com/t/hmmlearn-valueerror-rows-of-transmat--must-sum-to-1-0/229995/4
+            try:
+                for train_index, test_index in kfold.split(self.sequences):
                     x_train, len_train = combine_sequences(train_index, self.sequences)
                     x_test, len_test = combine_sequences(test_index, self.sequences)
 
                     model = GaussianHMM(n_components=n, n_iter=1000).fit(x_train, len_train)
                     logL_lst.append(model.score(x_test, len_test))
-                except ValueError:
-                    break
+            except:
+                break
 
             avg = np.average(logL_lst) if len(logL_lst) > 0 else float("-inf")
 
